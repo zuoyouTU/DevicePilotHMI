@@ -20,7 +20,7 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Qml)
 
-qt_standard_project_setup(REQUIRES 6.8)
+qt_standard_project_setup(REQUIRES 6.11)
 
 qt_add_executable(DevicePilotHMI
     src/main.cpp

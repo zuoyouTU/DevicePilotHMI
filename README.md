@@ -29,7 +29,7 @@ The project focuses on:
 - Qt 6 QML
 - CMake
 
-The current `CMakeLists.txt` requires Qt 6.8 or newer.
+The current `CMakeLists.txt` requires Qt 6.11 or newer.
 
 ## Application Overview
 
@@ -202,7 +202,7 @@ DevicePilotHMI/
 ### Requirements
 
 - CMake 3.16 or newer
-- Qt 6.8 or newer with:
+- Qt 6.11 or newer with:
   - `Qt6::Quick`
   - `Qt6::Qml`
 - a C++20-capable compiler

@@ -1,0 +1,68 @@
+name: Windows Qt Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.11.0
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: tools_mingw1310
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          qt-cmake -S . -B build-ci -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build-ci --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $PWD "release\DevicePilotHMI-windows-x64"
+          New-Item -ItemType Directory -Force $releaseDir | Out-Null
+
+          $exe = Get-ChildItem -Recurse -Path build-ci -Filter DevicePilotHMI.exe |
+            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $exe) {
+            throw "DevicePilotHMI.exe was not found in build output."
+          }
+
+          Copy-Item $exe $releaseDir
+
+          windeployqt --release --qmldir qml "$releaseDir\DevicePilotHMI.exe"
+
+          Remove-Item "$releaseDir\qmltooling" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$releaseDir\translations" -Recurse -Force -ErrorAction SilentlyContinue
+
+          Compress-Archive `
+            -Path "$releaseDir\*" `
+            -DestinationPath "$PWD\release\DevicePilotHMI-windows-x64.zip" `
+            -Force
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DevicePilotHMI-windows-x64
+          path: release/DevicePilotHMI-windows-x64.zip
