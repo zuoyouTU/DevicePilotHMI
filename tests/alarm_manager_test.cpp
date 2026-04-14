@@ -9,6 +9,7 @@
 #include "runtime/machine_runtime.h"
 #include "settings/settings_file_store.h"
 #include "settings/settings_manager.h"
+#include "test_machine_backend.h"
 
 class AlarmManagerTest : public QObject
 {
@@ -18,6 +19,7 @@ private slots:
     void initTestCase();
     void cleanup();
     void initialStateIsNormal();
+    void faultStateRemainsLatchedUntilReset();
     void warningTemperatureThresholdCrossingRaisesWarning();
     void faultTemperatureThresholdCrossingEntersFault();
     void warningPressureThresholdCrossingRaisesWarning();
@@ -41,7 +43,8 @@ void AlarmManagerTest::initialStateIsNormal()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     AlarmManager alarm(logInterface, settingsManager, runtime);
 
     QVERIFY(!alarm.hasWarning());
@@ -49,12 +52,44 @@ void AlarmManagerTest::initialStateIsNormal()
     QCOMPARE(alarm.alarmText(), QString("System normal"));
 }
 
+void AlarmManagerTest::faultStateRemainsLatchedUntilReset()
+{
+    LogModel logModel;
+    LogInterface logInterface(logModel);
+    SettingsManager settingsManager(logInterface);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
+    AlarmManager alarm(logInterface, settingsManager, runtime);
+
+    Settings::Snapshot candidate = settingsManager.snapshot();
+    candidate.warningTemperature = RuntimeInit::kTemperature - 2;
+    candidate.faultTemperature = RuntimeInit::kTemperature - 1;
+    const auto apply = settingsManager.applySnapshot(candidate);
+    QVERIFY(apply.ok);
+
+    QVERIFY(alarm.isFault());
+    QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
+
+    backend.publishState(MachineState::Starting);
+    QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
+
+    backend.publishState(MachineState::Running);
+    QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
+
+    backend.publishState(MachineState::Stopping);
+    QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
+
+    backend.publishState(MachineState::Idle);
+    QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
+}
+
 void AlarmManagerTest::warningTemperatureThresholdCrossingRaisesWarning()
 {
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     AlarmManager alarm(logInterface, settingsManager, runtime);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -63,9 +98,8 @@ void AlarmManagerTest::warningTemperatureThresholdCrossingRaisesWarning()
     const auto apply = settingsManager.applySnapshot(candidate);
     QVERIFY(apply.ok);
 
-    runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "updateSimulation", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
+    backend.publishTelemetry(RuntimeInit::kTemperature + 1.6, RuntimeInit::kPressure, 800);
 
     QVERIFY(alarm.hasWarning());
     QVERIFY(!alarm.isFault());
@@ -76,7 +110,8 @@ void AlarmManagerTest::faultTemperatureThresholdCrossingEntersFault()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     AlarmManager alarm(logInterface, settingsManager, runtime);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -85,9 +120,8 @@ void AlarmManagerTest::faultTemperatureThresholdCrossingEntersFault()
     const auto apply = settingsManager.applySnapshot(candidate);
     QVERIFY(apply.ok);
 
-    runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "updateSimulation", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
+    backend.publishTelemetry(RuntimeInit::kTemperature + 1.6, RuntimeInit::kPressure, 800);
 
     QVERIFY(alarm.isFault());
     QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
@@ -99,7 +133,8 @@ void AlarmManagerTest::warningPressureThresholdCrossingRaisesWarning()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     AlarmManager alarm(logInterface, settingsManager, runtime);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -108,9 +143,8 @@ void AlarmManagerTest::warningPressureThresholdCrossingRaisesWarning()
     const auto apply = settingsManager.applySnapshot(candidate);
     QVERIFY(apply.ok);
 
-    runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "updateSimulation", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
+    backend.publishTelemetry(RuntimeInit::kTemperature, RuntimeInit::kPressure + 2.4, 800);
 
     QVERIFY(alarm.hasWarning());
     QVERIFY(!alarm.isFault());
@@ -121,7 +155,8 @@ void AlarmManagerTest::faultPressureThresholdCrossingEntersFault()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     AlarmManager alarm(logInterface, settingsManager, runtime);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -130,9 +165,8 @@ void AlarmManagerTest::faultPressureThresholdCrossingEntersFault()
     const auto apply = settingsManager.applySnapshot(candidate);
     QVERIFY(apply.ok);
 
-    runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "updateSimulation", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
+    backend.publishTelemetry(RuntimeInit::kTemperature, RuntimeInit::kPressure + 2.4, 800);
 
     QVERIFY(alarm.isFault());
     QCOMPARE(runtime.state(), MachineRuntime::State::Fault);

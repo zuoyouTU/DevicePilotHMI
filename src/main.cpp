@@ -4,6 +4,7 @@
 #include <QVariant>
 
 #include "alarm/alarm_manager.h"
+#include "backend/simulated_machine_backend.h"
 #include "log/log_interface.h"
 #include "log/log_model.h"
 #include "runtime/machine_runtime.h"
@@ -18,7 +19,8 @@ int main(int argc, char *argv[])
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime machineRuntime(logInterface, settingsManager);
+    SimulatedMachineBackend simulatedBackend(settingsManager);
+    MachineRuntime machineRuntime(logInterface, simulatedBackend);
     AlarmManager alarmManager(logInterface, settingsManager, machineRuntime);
     SettingsApplyService settingsApplyService(logInterface, settingsManager, machineRuntime);
     SettingsSession settingsSession(logInterface, settingsManager, settingsApplyService);

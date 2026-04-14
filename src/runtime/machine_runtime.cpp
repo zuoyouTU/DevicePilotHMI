@@ -1,31 +1,28 @@
 #include "runtime/machine_runtime.h"
 
-#include <algorithm>
+#include <QMetaType>
 
+#include "backend/machine_backend.h"
 #include "log/log_interface.h"
-#include "settings/settings_manager.h"
 
 MachineRuntime::MachineRuntime(LogInterface &logInterface,
-                               SettingsManager &settings,
+                               MachineBackend &backend,
                                QObject *parent)
     : QObject(parent)
+    , m_backend(&backend)
     , m_logInterface(&logInterface)
-    , m_settings(&settings)
 {
+    qRegisterMetaType<MachineState>("MachineState");
+    qRegisterMetaType<TelemetryFrame>("TelemetryFrame");
+
+    Q_ASSERT(m_backend);
     Q_ASSERT(m_logInterface);
-    Q_ASSERT(m_settings);
 
-    m_updateTimer.setInterval(m_settings->updateIntervalMs());
-    connect(&m_updateTimer, &QTimer::timeout, this, &MachineRuntime::updateSimulation);
-
-    m_transitionTimer.setSingleShot(true);
-    connect(&m_transitionTimer, &QTimer::timeout, this, &MachineRuntime::onTransitionTimeout);
-
-    connect(m_settings, &SettingsManager::updateIntervalMsChanged, this, [this]() {
-        m_updateTimer.setInterval(m_settings->updateIntervalMs());
-        appendLog("CONFIG",
-                  QString("updateIntervalMs applied: %1 ms").arg(m_settings->updateIntervalMs()));
-    });
+    connect(m_backend,
+            &MachineBackend::telemetryReceived,
+            this,
+            &MachineRuntime::onTelemetryReceived);
+    connect(m_backend, &MachineBackend::stateReported, this, &MachineRuntime::onStateReported);
 }
 
 QString MachineRuntime::status() const
@@ -75,9 +72,7 @@ void MachineRuntime::start()
     }
 
     appendLog("INFO", "Start requested");
-    m_pendingTransition = PendingTransition::FinishStart;
-    setState(State::Starting);
-    m_transitionTimer.start(5000);
+    m_backend->requestStart();
 }
 
 void MachineRuntime::stop()
@@ -87,9 +82,7 @@ void MachineRuntime::stop()
     }
 
     appendLog("INFO", "Stop requested");
-    m_pendingTransition = PendingTransition::FinishStop;
-    setState(State::Stopping);
-    m_transitionTimer.start(1200);
+    m_backend->requestStop();
 }
 
 void MachineRuntime::resetFault()
@@ -99,79 +92,98 @@ void MachineRuntime::resetFault()
     }
 
     appendLog("INFO", "Fault reset requested");
-
-    m_pendingTransition = PendingTransition::None;
-    resetMeasurementsToIdle();
-    emit resetAlarmState();
-    setState(State::Idle);
-
-    appendLog("INFO", "Fault reset completed");
+    m_faultResetPending = true;
+    m_backend->requestResetFault();
 }
 
-void MachineRuntime::updateSimulation()
+void MachineRuntime::onTelemetryReceived(TelemetryFrame frame)
 {
-    if (m_state != State::Running) {
-        return;
+    bool telemetryChanged = false;
+
+    if (m_temperature != frame.temperature) {
+        m_temperature = frame.temperature;
+        emit temperatureChanged();
+        telemetryChanged = true;
     }
 
-    m_temperature += 1.6;
-    m_pressure += 2.4;
-    m_speed = std::min(3600, m_speed + 120);
+    if (m_pressure != frame.pressure) {
+        m_pressure = frame.pressure;
+        emit pressureChanged();
+        telemetryChanged = true;
+    }
 
-    emit temperatureChanged();
-    emit pressureChanged();
-    emit speedChanged();
-    emit evaluateAlarm();
-}
-
-void MachineRuntime::onTransitionTimeout()
-{
-    switch (m_pendingTransition) {
-    case PendingTransition::FinishStart:
-        m_pendingTransition = PendingTransition::None;
-        m_speed = 800;
+    if (m_speed != frame.speed) {
+        m_speed = frame.speed;
         emit speedChanged();
-        setState(State::Running);
-        m_updateTimer.start();
-        appendLog("INFO", "Transition to Running completed");
+        telemetryChanged = true;
+    }
+
+    if (telemetryChanged && m_state == State::Running) {
         emit evaluateAlarm();
-        break;
-
-    case PendingTransition::FinishStop:
-        m_pendingTransition = PendingTransition::None;
-        m_updateTimer.stop();
-        resetMeasurementsToIdle();
-        emit resetAlarmState();
-        setState(State::Idle);
-        appendLog("INFO", "Transition to Idle completed");
-        break;
-
-    case PendingTransition::None:
-        break;
     }
 }
 
-void MachineRuntime::onEnterFault()
+void MachineRuntime::onStateReported(MachineState state)
 {
-    m_updateTimer.stop();
-    m_transitionTimer.stop();
-    m_pendingTransition = PendingTransition::None;
-    if (m_speed != 0) {
-        m_speed = 0;
-        emit speedChanged();
-    }
-    setState(State::Fault);
-}
+    if (m_state == State::Fault) {
+        if (state == State::Idle && !m_faultResetPending) {
+            return;
+        }
 
-void MachineRuntime::setState(State newState)
-{
-    if (m_state == newState) {
+        if (state != State::Fault && state != State::Idle) {
+            return;
+        }
+    }
+
+    if (m_state == state) {
         return;
     }
 
-    m_state = newState;
+    const State previousState = m_state;
+    m_state = state;
     emit statusChanged();
     emit stateChanged();
+
+    if (m_state == State::Fault) {
+        m_faultResetPending = false;
+    }
+
+    if (previousState == State::Starting && m_state == State::Running) {
+        appendLog("INFO", "Transition to Running completed");
+        emit evaluateAlarm();
+        return;
+    }
+
+    if (previousState == State::Stopping && m_state == State::Idle) {
+        appendLog("INFO", "Transition to Idle completed");
+        emit resetAlarmState();
+        return;
+    }
+
+    if (previousState == State::Fault && m_state == State::Idle) {
+        m_faultResetPending = false;
+        appendLog("INFO", "Fault reset completed");
+        emit resetAlarmState();
+    }
+}
+
+void MachineRuntime::enterFault()
+{
+    if (m_state == State::Fault) {
+        return;
+    }
+
+    m_state = State::Fault;
+    m_faultResetPending = false;
+    emit statusChanged();
+    emit stateChanged();
+
+    if (m_speed != RuntimeInit::kSpeed) {
+        m_speed = RuntimeInit::kSpeed;
+        emit speedChanged();
+    }
+
+    m_backend->requestSafeShutdown();
 }
 
 QString MachineRuntime::stateToString(State state) const
@@ -189,22 +201,6 @@ QString MachineRuntime::stateToString(State state) const
         return "Fault";
     }
     return "Unknown";
-}
-
-void MachineRuntime::resetMeasurementsToIdle()
-{
-    if (m_temperature != RuntimeInit::kTemperature) {
-        m_temperature = RuntimeInit::kTemperature;
-        emit temperatureChanged();
-    }
-    if (m_pressure != RuntimeInit::kPressure) {
-        m_pressure = RuntimeInit::kPressure;
-        emit pressureChanged();
-    }
-    if (m_speed != RuntimeInit::kSpeed) {
-        m_speed = RuntimeInit::kSpeed;
-        emit speedChanged();
-    }
 }
 
 void MachineRuntime::appendLog(const QString &level, const QString &message)

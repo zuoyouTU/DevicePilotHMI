@@ -95,7 +95,7 @@ void AlarmManager::enterFault(const QString &reason)
 
     m_alarmLevel = AlarmLevel::Fault;
     m_alarmText = reason;
-    m_runtime->onEnterFault();
+    m_runtime->enterFault();
     emit alarmChanged();
 
     appendLog("FAULT", reason);
