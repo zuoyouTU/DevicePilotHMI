@@ -3,17 +3,12 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QTimer>
 #include <qqmlintegration.h>
 
+class MachineBackend;
 class LogInterface;
-class SettingsManager;
 
-namespace RuntimeInit {
-static constexpr int kTemperature = 25;
-static constexpr int kPressure = 80;
-static constexpr int kSpeed = 0;
-}; // namespace RuntimeInit
+#include "runtime/machine_types.h"
 
 class MachineRuntime : public QObject
 {
@@ -31,8 +26,10 @@ class MachineRuntime : public QObject
     Q_PROPERTY(bool canResetFault READ canResetFault NOTIFY stateChanged)
 
 public:
+    using State = MachineState;
+
     explicit MachineRuntime(LogInterface &logInterface,
-                            SettingsManager &settings,
+                            MachineBackend &backend,
                             QObject *parent = nullptr);
 
     QString status() const;
@@ -58,33 +55,25 @@ signals:
     void resetAlarmState();
 
 private slots:
-    void updateSimulation();
-    void onTransitionTimeout();
+    void onTelemetryReceived(TelemetryFrame frame);
+    void onStateReported(MachineState state);
 
 public:
-    enum class State { Idle, Starting, Running, Stopping, Fault };
     State state() const;
-    void onEnterFault();
+    void enterFault();
 
 private:
-    enum class PendingTransition { None, FinishStart, FinishStop };
-
-    void setState(State newState);
     QString stateToString(State state) const;
-    void resetMeasurementsToIdle();
     void appendLog(const QString &level, const QString &message);
 
 private:
     State m_state{State::Idle};
-    PendingTransition m_pendingTransition{PendingTransition::None};
+    bool m_faultResetPending{false};
 
     double m_temperature{RuntimeInit::kTemperature};
     double m_pressure{RuntimeInit::kPressure};
     int m_speed{RuntimeInit::kSpeed};
 
-    QTimer m_updateTimer;
-    QTimer m_transitionTimer;
-
+    QPointer<MachineBackend> m_backend{nullptr};
     QPointer<LogInterface> m_logInterface{nullptr};
-    QPointer<SettingsManager> m_settings{nullptr};
 };

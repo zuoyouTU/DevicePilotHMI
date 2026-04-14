@@ -5,6 +5,7 @@ DevicePilotHMI is a Qt Quick / QML desktop HMI demo for a simulated machine. It 
 The project focuses on:
 
 - a simulated runtime state machine
+- a backend interface that keeps the application layer separate from the simulator implementation
 - threshold-based alarm handling
 - an event log with filtering and acknowledgment
 - editable, validated, and persisted settings
@@ -74,7 +75,7 @@ The machine starts in `Idle`.
   - raised when warning thresholds are exceeded
 - `Fault`
   - raised when fault thresholds are exceeded
-  - forces the runtime into fault state
+  - forces the runtime into fault state and requests a backend safe shutdown
 
 Current alarm evaluation is threshold-based and uses the current committed settings snapshot.
 
@@ -125,6 +126,7 @@ At startup, `main.cpp` creates the long-lived application objects and injects th
 - `LogModel`
 - `LogInterface`
 - `SettingsManager`
+- `SimulatedMachineBackend`
 - `MachineRuntime`
 - `AlarmManager`
 - `SettingsApplyService`
@@ -137,27 +139,31 @@ graph TD
     A["main.cpp"] --> B["LogModel"]
     A --> C["LogInterface"]
     A --> D["SettingsManager"]
-    A --> E["MachineRuntime"]
-    A --> F["AlarmManager"]
-    A --> G["SettingsApplyService"]
-    A --> H["SettingsSession"]
+    A --> E["SimulatedMachineBackend"]
+    A --> F["MachineRuntime"]
+    A --> G["AlarmManager"]
+    A --> H["SettingsApplyService"]
+    A --> J["SettingsSession"]
 
     F --> C
-    F --> D
     F --> E
 
     G --> C
     G --> D
-    G --> E
+    G --> F
 
     H --> C
     H --> D
-    H --> G
+    H --> F
 
-    I["Main.qml"] --> E
-    I --> F
+    J --> C
+    J --> D
+    J --> H
+
+    I["Main.qml"] --> F
+    I --> G
     I --> B
-    I --> H
+    I --> J
 ```
 
 The project deliberately avoids using a single "god controller" as the only QML entry point.
@@ -180,12 +186,16 @@ DevicePilotHMI/
 └── src/
     ├── alarm/
     │   ├── alarm_manager.h/.cpp
+    ├── backend/
+    │   ├── machine_backend.h/.cpp
+    │   └── simulated_machine_backend.h/.cpp
     ├── log/
     │   ├── log_interface.h/.cpp
     │   ├── log_model.h/.cpp
     │   └── log_filter_proxy_model.h/.cpp
     ├── runtime/
-    │   └── machine_runtime.h/.cpp
+    │   ├── machine_runtime.h/.cpp
+    │   └── machine_types.h
     └── settings/
         ├── settings_apply_service.h/.cpp
         ├── settings_defined.h
@@ -237,7 +247,7 @@ Typical usage flow:
 
 ## Current Limitations
 
-- The runtime is simulated; there is no real device backend yet.
+- The runtime is still driven by a simulated backend; there is no real device backend yet.
 - Alarm handling is still simple and does not implement a full industrial alarm lifecycle such as acknowledge/latched/cleared state modeling.
 - The automated test suite currently focuses on core C++ modules such as validation, settings persistence, apply policy, session state, draft behavior, and alarm transitions; it does not cover QML UI behavior end-to-end.
 - The project is currently organized as a single application target rather than a split core library plus app shell.

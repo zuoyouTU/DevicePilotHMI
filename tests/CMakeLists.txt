@@ -41,6 +41,7 @@ add_test(NAME settings_file_store_tests COMMAND settings_file_store_tests)
 
 add_executable(settings_apply_service_tests
     settings_apply_service_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/backend/machine_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_apply_service.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_file_store.cpp
@@ -78,6 +79,7 @@ add_test(NAME settings_draft_tests COMMAND settings_draft_tests)
 
 add_executable(settings_session_tests
     settings_session_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/backend/machine_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_session.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_draft.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_apply_service.cpp
@@ -99,6 +101,7 @@ add_test(NAME settings_session_tests COMMAND settings_session_tests)
 
 add_executable(alarm_manager_tests
     alarm_manager_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/backend/machine_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/alarm/alarm_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/runtime/machine_runtime.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_manager.cpp

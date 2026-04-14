@@ -9,6 +9,7 @@
 #include "settings/settings_apply_service.h"
 #include "settings/settings_file_store.h"
 #include "settings/settings_manager.h"
+#include "test_machine_backend.h"
 
 class SettingsApplyServiceTest : public QObject
 {
@@ -43,7 +44,8 @@ void SettingsApplyServiceTest::idleAllowsThresholdAndIntervalChanges()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -66,7 +68,8 @@ void SettingsApplyServiceTest::startingBlocksUpdateSettingsChanges()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
     runtime.start();
@@ -113,12 +116,13 @@ void SettingsApplyServiceTest::runningBlocksUpdateIntervalChanges()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
     runtime.start();
     QCOMPARE(runtime.state(), MachineRuntime::State::Starting);
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
     QCOMPARE(runtime.state(), MachineRuntime::State::Running);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -162,11 +166,12 @@ void SettingsApplyServiceTest::stoppingBlocksSettingsChanges()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
     runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
     QCOMPARE(runtime.state(), MachineRuntime::State::Running);
 
     runtime.stop();
@@ -187,10 +192,11 @@ void SettingsApplyServiceTest::faultBlocksSettingsChanges()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
-    runtime.onEnterFault();
+    runtime.enterFault();
     QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -208,7 +214,8 @@ void SettingsApplyServiceTest::successfulApplyPersistsSnapshot()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
     Settings::Snapshot candidate = settingsManager.snapshot();
@@ -232,13 +239,14 @@ void SettingsApplyServiceTest::rejectedApplyDoesNotPersistSnapshot()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
 
     const Settings::Snapshot baseline = settingsManager.snapshot();
 
     runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
     QCOMPARE(runtime.state(), MachineRuntime::State::Running);
 
     Settings::Snapshot candidate = baseline;

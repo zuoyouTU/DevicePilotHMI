@@ -10,6 +10,7 @@
 #include "settings/settings_file_store.h"
 #include "settings/settings_manager.h"
 #include "settings/settings_session.h"
+#include "test_machine_backend.h"
 
 class SettingsSessionTest : public QObject
 {
@@ -48,7 +49,8 @@ void SettingsSessionTest::sessionStartsLoadedAndClean()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
@@ -66,7 +68,8 @@ void SettingsSessionTest::invalidDraftDisablesApplyWithoutRestrictionReason()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
@@ -83,7 +86,8 @@ void SettingsSessionTest::idleDirtyValidDraftEnablesApply()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
@@ -100,7 +104,8 @@ void SettingsSessionTest::startingDisablesApplyWithReason()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
@@ -117,7 +122,8 @@ void SettingsSessionTest::runtimeTransitionUpdatesApplyState()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
@@ -136,12 +142,13 @@ void SettingsSessionTest::runningThresholdChangeEnablesApply()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
     runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
     QCOMPARE(runtime.state(), MachineRuntime::State::Running);
 
     session.draft()->setWarningTemperature(settingsManager.snapshot().warningTemperature + 1);
@@ -156,12 +163,13 @@ void SettingsSessionTest::runningIntervalChangeDisablesApplyWithReason()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
     runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
     QCOMPARE(runtime.state(), MachineRuntime::State::Running);
 
     session.draft()->setUpdateIntervalMs(settingsManager.snapshot().updateIntervalMs + 100);
@@ -176,12 +184,13 @@ void SettingsSessionTest::stoppingDisablesApplyWithReason()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
     runtime.start();
-    QVERIFY(QMetaObject::invokeMethod(&runtime, "onTransitionTimeout", Qt::DirectConnection));
+    backend.publishState(MachineState::Running);
     runtime.stop();
     QCOMPARE(runtime.state(), MachineRuntime::State::Stopping);
 
@@ -196,11 +205,12 @@ void SettingsSessionTest::faultDisablesApplyWithReason()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
-    runtime.onEnterFault();
+    runtime.enterFault();
     QCOMPARE(runtime.state(), MachineRuntime::State::Fault);
 
     session.draft()->setWarningTemperature(settingsManager.snapshot().warningTemperature + 1);
@@ -214,7 +224,8 @@ void SettingsSessionTest::reloadRestoresCleanState()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 
@@ -233,7 +244,8 @@ void SettingsSessionTest::applyRestoresCleanState()
     LogModel logModel;
     LogInterface logInterface(logModel);
     SettingsManager settingsManager(logInterface);
-    MachineRuntime runtime(logInterface, settingsManager);
+    FakeMachineBackend backend;
+    MachineRuntime runtime(logInterface, backend);
     SettingsApplyService service(logInterface, settingsManager, runtime);
     SettingsSession session(logInterface, settingsManager, service);
 

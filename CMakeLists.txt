@@ -31,6 +31,10 @@ qt_add_qml_module(DevicePilotHMI
     VERSION 1.0
 
     SOURCES
+        src/backend/machine_backend.h
+        src/backend/machine_backend.cpp
+        src/backend/simulated_machine_backend.h
+        src/backend/simulated_machine_backend.cpp
         src/log/log_model.h
         src/log/log_model.cpp
         src/log/log_filter_proxy_model.h
@@ -46,6 +50,7 @@ qt_add_qml_module(DevicePilotHMI
         src/settings/settings_session.cpp
         src/runtime/machine_runtime.h
         src/runtime/machine_runtime.cpp
+        src/runtime/machine_types.h
         src/alarm/alarm_manager.h
         src/alarm/alarm_manager.cpp
         src/settings/settings_file_store.cpp
