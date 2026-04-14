@@ -9,7 +9,37 @@ on:
 
 jobs:
   build-windows:
+    name: build-windows
     runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.11.0
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: tools_mingw1310
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          qt-cmake -S . -B build-ci -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build-ci --parallel
+
+  run-tests:
+    name: run-tests
+    runs-on: windows-latest
+    needs: build-windows
 
     steps:
       - name: Checkout
@@ -39,6 +69,35 @@ jobs:
         shell: pwsh
         run: |
           ctest --test-dir build-ci --output-on-failure --parallel
+
+  package-artifact:
+    name: package-artifact
+    runs-on: windows-latest
+    needs: run-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.11.0
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: tools_mingw1310
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          qt-cmake -S . -B build-ci -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build-ci --parallel
 
       - name: Package
         shell: pwsh
