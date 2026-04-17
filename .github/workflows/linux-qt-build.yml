@@ -1,0 +1,83 @@
+name: Linux Qt Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: build-linux
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: 6.11.0
+          aqtversion: ==3.3.*
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+
+      - name: Prepare Scripts
+        shell: bash
+        run: |
+          chmod +x ./scripts/build.sh
+
+      - name: Configure and Build
+        shell: bash
+        run: |
+          ./scripts/build.sh --preset linux-ninja-release --skip-tests
+
+      - name: Archive Build Tree
+        shell: bash
+        run: |
+          tar -C build -czf linux-ninja-release-build-tree.tar.gz linux-ninja-release
+
+      - name: Upload Build Tree
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-ninja-release-build-tree
+          path: linux-ninja-release-build-tree.tar.gz
+          if-no-files-found: error
+
+  run-tests:
+    name: run-tests
+    runs-on: ubuntu-24.04
+    needs: build-linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: 6.11.0
+          aqtversion: ==3.3.*
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+
+      - name: Download Build Tree
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-ninja-release-build-tree
+          path: .
+
+      - name: Extract Build Tree
+        shell: bash
+        run: |
+          mkdir -p build
+          tar -C build -xzf linux-ninja-release-build-tree.tar.gz
+
+      - name: Run Tests
+        shell: bash
+        run: |
+          ctest --preset linux-ninja-release --parallel

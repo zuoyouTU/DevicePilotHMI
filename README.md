@@ -119,118 +119,165 @@ Behavior on startup:
 - if the file exists but is malformed or invalid, defaults are restored
 - repaired settings are written back to disk
 
-## Architecture
-
-At startup, `main.cpp` creates the long-lived application objects and injects them into the root QML object:
-
-- `LogModel`
-- `LogInterface`
-- `SettingsManager`
-- `SimulatedMachineBackend`
-- `MachineRuntime`
-- `AlarmManager`
-- `SettingsApplyService`
-- `SettingsSession`
-
-The intended layering is:
-
-```mermaid
-graph TD
-    A["main.cpp"] --> B["LogModel"]
-    A --> C["LogInterface"]
-    A --> D["SettingsManager"]
-    A --> E["SimulatedMachineBackend"]
-    A --> F["MachineRuntime"]
-    A --> G["AlarmManager"]
-    A --> H["SettingsApplyService"]
-    A --> J["SettingsSession"]
-
-    F --> C
-    F --> E
-
-    G --> C
-    G --> D
-    G --> F
-
-    H --> C
-    H --> D
-    H --> F
-
-    J --> C
-    J --> D
-    J --> H
-
-    I["Main.qml"] --> F
-    I --> G
-    I --> B
-    I --> J
-```
-
-The project deliberately avoids using a single "god controller" as the only QML entry point.
-
-## Project Structure
-
-```text
-DevicePilotHMI/
-├── CMakeLists.txt
-├── qml/
-│   ├── Main.qml
-│   ├── components/
-│   │   ├── ControlPanel.qml
-│   │   ├── MetricCard.qml
-│   │   └── StatusBanner.qml
-│   └── pages/
-│       ├── DashboardPage.qml
-│       ├── LogPage.qml
-│       └── SettingsPage.qml
-└── src/
-    ├── alarm/
-    │   ├── alarm_manager.h/.cpp
-    ├── backend/
-    │   ├── machine_backend.h/.cpp
-    │   └── simulated_machine_backend.h/.cpp
-    ├── log/
-    │   ├── log_interface.h/.cpp
-    │   ├── log_model.h/.cpp
-    │   └── log_filter_proxy_model.h/.cpp
-    ├── runtime/
-    │   ├── machine_runtime.h/.cpp
-    │   └── machine_types.h
-    └── settings/
-        ├── settings_apply_service.h/.cpp
-        ├── settings_defined.h
-        ├── settings_draft.h/.cpp
-        ├── settings_file_store.h/.cpp
-        ├── settings_json_codec.h/.cpp
-        ├── settings_manager.h/.cpp
-        ├── settings_session.h/.cpp
-        └── settings_validation.h/.cpp
-```
-
 ## Build
 
 ### Requirements
 
-- CMake 3.16 or newer
+- CMake 3.25 or newer
 - Qt 6.11 or newer with:
   - `Qt6::Quick`
   - `Qt6::Qml`
 - a C++20-capable compiler
+- on Windows:
+  - MinGW 13.1 (or the Qt-provided `mingw1310_64` toolchain) for the MinGW presets
+  - Visual Studio 2022 / Build Tools 2022 with the x64 C++ toolchain for the MSVC presets
+- on Linux:
+  - Ninja
+  - a GCC or Clang toolchain compatible with Qt 6.11
 
-### Qt Creator
+### Fresh Windows Setup
 
-Open the project in Qt Creator, select a Qt 6 kit, and build normally.
+For a new Windows machine, install the following first:
 
-### Command Line
+- Qt 6.11.0 from the Qt Online Installer
+- `mingw_64` if you want to build with MinGW
+- `msvc2022_64` if you want to build with MSVC
+- `Tools/mingw1310_64` if you want to build with MinGW
+- `Tools/Ninja`
+- `Tools/CMake_64` or another CMake 3.25+ installation
+- Visual Studio 2022 / Build Tools 2022 with the x64 C++ toolchain if you want to use the MSVC presets
 
-Example with a local Qt installation on Windows:
+A typical Qt installation layout is:
 
-```powershell
-cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="C:\Qt\6.11.0\mingw_64"
-cmake --build build
+```text
+C:\Qt\6.11.0\mingw_64
+C:\Qt\6.11.0\msvc2022_64
+C:\Qt\Tools\mingw1310_64
+C:\Qt\Tools\Ninja
 ```
 
-If you use another generator or compiler, adjust the `CMAKE_PREFIX_PATH` and generator accordingly.
+Initialize the preset environment once:
+
+```powershell
+.\scripts\setup_windows_qt_env.ps1 -QtRoot 'C:\Qt' -Scope User
+```
+
+Then use one of the checked-in presets.
+
+MinGW:
+
+```powershell
+.\scripts\build.ps1 -Preset windows-mingw-debug
+```
+
+MSVC:
+
+Open a Developer PowerShell for Visual Studio 2022 first, then run:
+
+```powershell
+.\scripts\build.ps1 -Preset windows-msvc-debug
+```
+
+If you need a clean rebuild after changing Qt, generators, or toolchains:
+
+```powershell
+.\scripts\build.ps1 -Preset windows-mingw-debug -Fresh
+```
+
+To create a redistributable Windows package:
+
+```powershell
+.\scripts\package_windows.ps1 -Preset windows-mingw-release
+```
+
+### Fresh Linux Setup
+
+For a new Linux machine, install the following first:
+
+- CMake 3.25 or newer
+- Ninja
+- GCC or Clang
+- Qt 6.11 or newer with Quick, QML, and Test development packages
+
+If you use a distro-provided Qt installation and CMake can already find it, build with:
+
+```bash
+./scripts/build.sh --preset linux-ninja-debug
+```
+
+If you use a Qt installation from the Qt Online Installer or another custom prefix, pass the Qt root explicitly:
+
+```bash
+./scripts/build.sh --preset linux-ninja-debug --qt-root /home/<user>/Qt/6.11.0/gcc_64
+```
+
+For a clean rebuild:
+
+```bash
+./scripts/build.sh --preset linux-ninja-debug --qt-root /home/<user>/Qt/6.11.0/gcc_64 --fresh
+```
+
+If you use Qt Creator on Linux, launch it from a shell that already exports the Qt location:
+
+```bash
+export QT_ROOT_DIR=/home/<user>/Qt/6.11.0/gcc_64
+export CMAKE_PREFIX_PATH=/home/<user>/Qt/6.11.0/gcc_64
+export PATH=/home/<user>/Qt/6.11.0/gcc_64/bin:$PATH
+qtcreator /path/to/DevicePilotHMI
+```
+
+If configuration failed earlier, clear the failed CMake configuration or remove the corresponding `build/linux-*` directory before configuring again.
+
+### Presets
+
+The repository includes `CMakePresets.json` with matching Windows and Linux presets for Qt Creator and command-line builds:
+
+- `windows-mingw-debug`
+- `windows-mingw-release`
+- `windows-msvc-debug`
+- `windows-msvc-release`
+- `linux-ninja-debug`
+- `linux-ninja-release`
+
+The presets enable `BUILD_TESTING`, place build trees under `build/` with platform-specific names, and stage install trees under `build/<preset>/stage`.
+
+Platform notes:
+
+- on Windows, the `windows-mingw-*` and `windows-msvc-*` presets are exposed
+- on Linux, only the `linux-ninja-*` presets are exposed
+- the Windows presets intentionally read the following user environment variables instead of hard-coding local install paths:
+  - `QT_WIN_MINGW_ROOT`
+  - `QT_WIN_MSVC_ROOT`
+  - `QT_WIN_MINGW_TOOLS_ROOT`
+  - `QT_WIN_NINJA_ROOT`
+- Linux presets intentionally do not hard-code a Qt path; they work with a distro Qt install, a shell that already exports `QT_ROOT_DIR`, or `./scripts/build.sh --qt-root <path>`
+- when Qt Creator configures the project without using a preset, `CMakeLists.txt` also falls back to `QT_ROOT_DIR` and prepends it to `CMAKE_PREFIX_PATH`
+- the MSVC presets also assume Visual Studio 2022 / Build Tools 2022 with the x64 C++ toolchain installed
+
+### Windows Local Environment Setup
+
+On Windows, the checked-in presets can auto-detect a standard `C:\Qt` layout through the helper script. Run it once to persist the variables for future terminals and Qt Creator sessions:
+
+```powershell
+.\scripts\setup_windows_qt_env.ps1 -QtRoot 'C:\Qt' -Scope User
+```
+
+If your installation differs from the standard layout shown above, pass the matching arguments explicitly. The script writes whichever toolchain paths actually exist, so a contributor can keep only MinGW or only MSVC installed locally and still use the matching preset.
+
+Example:
+
+```powershell
+.\scripts\setup_windows_qt_env.ps1 `
+  -QtRoot 'D:\Qt' `
+  -QtVersion '6.11.0' `
+  -MingwToolsDirName 'mingw1310_64' `
+  -NinjaDirName 'Ninja' `
+  -Scope User
+```
+
+For one-off shells, use `-Scope Process` instead.
+
+If you prefer local overrides instead of persistent user environment variables, use `CMakeUserPresets.json.example` as the starting point for a local `CMakeUserPresets.json`.
 
 ## Run
 
@@ -258,7 +305,7 @@ This codebase is most useful as:
 
 - a Qt/QML architecture practice project
 - a small HMI portfolio piece
-- a base for further refactoring toward real-device integration, stronger alarm modeling, deeper test coverage, and a cleaner core/app split
+- a base for further refactoring toward real-device integration, stronger alarm modeling, deeper test coverage, a cleaner core/app split, and portable Linux CI/build coverage
 
 ## License
 

@@ -1,15 +1,23 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.25)
 
 project(DevicePilotHMI VERSION 0.1 LANGUAGES CXX)
+
+include(GNUInstallDirs)
+
+if (NOT CMAKE_PREFIX_PATH AND DEFINED ENV{QT_ROOT_DIR} AND NOT "$ENV{QT_ROOT_DIR}" STREQUAL "")
+    file(TO_CMAKE_PATH "$ENV{QT_ROOT_DIR}" DEVICEPILOTHMI_QT_ROOT_DIR)
+    list(PREPEND CMAKE_PREFIX_PATH "${DEVICEPILOTHMI_QT_ROOT_DIR}")
+endif()
 
 add_library(project_options INTERFACE)
 add_library(project_warnings INTERFACE)
 
 target_compile_features(project_options INTERFACE cxx_std_20)
 target_compile_options(project_warnings INTERFACE
-    -Wall
-    -Wextra
-    -Wpedantic
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wextra>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wpedantic>
 )
 
 if (MINGW)
@@ -18,7 +26,24 @@ if (MINGW)
     )
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Qml)
+find_package(Qt6 QUIET COMPONENTS Quick Qml Test)
+
+if (NOT Qt6_FOUND)
+    message(FATAL_ERROR
+        "Qt 6.11+ was not found.\n"
+        "\n"
+        "How to fix it:\n"
+        "  - Command line on Linux: run ./scripts/build.sh --preset linux-ninja-debug --qt-root /path/to/Qt/6.11.0/gcc_64\n"
+        "  - Qt Creator on Linux: set QT_ROOT_DIR or CMAKE_PREFIX_PATH to your Qt 6 root before opening the project,\n"
+        "    or create a local CMakeUserPresets.json based on CMakeUserPresets.json.example.\n"
+        "  - Windows: run ./scripts/setup_windows_qt_env.ps1 first.\n"
+        "\n"
+        "Expected Qt root examples:\n"
+        "  - Linux: /home/<user>/Qt/6.11.0/gcc_64\n"
+        "  - Windows MinGW: C:/Qt/6.11.0/mingw_64\n"
+        "  - Windows MSVC: C:/Qt/6.11.0/msvc2022_64\n"
+    )
+endif()
 
 qt_standard_project_setup(REQUIRES 6.11)
 
@@ -74,6 +99,10 @@ qt_add_qml_module(DevicePilotHMI
         qml/components/ControlPanel.qml
 )
 
+set_target_properties(DevicePilotHMI PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
 target_include_directories(DevicePilotHMI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/log
@@ -90,7 +119,19 @@ target_link_libraries(DevicePilotHMI
         project_warnings
 )
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Qml Test)
+install(TARGETS DevicePilotHMI
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+qt_generate_deploy_qml_app_script(
+    TARGET DevicePilotHMI
+    OUTPUT_SCRIPT devicepilothmi_deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR
+    DEPLOY_USER_QML_MODULES_ON_UNSUPPORTED_PLATFORM
+)
+
+install(SCRIPT ${devicepilothmi_deploy_script})
 
 include(CTest)
 enable_testing()
