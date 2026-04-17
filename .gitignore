@@ -1,6 +1,7 @@
 build/
 release/
 .qtcreator/
+CMakeUserPresets.json
 
 *.pro.user
 *.pro.user.*

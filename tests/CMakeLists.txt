@@ -10,6 +10,21 @@ target_link_libraries(test_common INTERFACE
     project_warnings
 )
 
+function(configure_test_runtime target_name test_name)
+    if (WIN32)
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${target_name}>
+                $<TARGET_FILE_DIR:${target_name}>
+            COMMAND_EXPAND_LISTS
+        )
+    endif()
+
+    set_tests_properties(${test_name} PROPERTIES
+        WORKING_DIRECTORY $<TARGET_FILE_DIR:${target_name}>
+    )
+endfunction()
+
 add_executable(settings_validation_tests
     settings_validation_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/settings/settings_validation.cpp
@@ -18,6 +33,7 @@ add_executable(settings_validation_tests
 target_link_libraries(settings_validation_tests PRIVATE test_common)
 
 add_test(NAME settings_validation_tests COMMAND settings_validation_tests)
+configure_test_runtime(settings_validation_tests settings_validation_tests)
 
 add_executable(settings_json_codec_tests
     settings_json_codec_test.cpp
@@ -27,6 +43,7 @@ add_executable(settings_json_codec_tests
 target_link_libraries(settings_json_codec_tests PRIVATE test_common)
 
 add_test(NAME settings_json_codec_tests COMMAND settings_json_codec_tests)
+configure_test_runtime(settings_json_codec_tests settings_json_codec_tests)
 
 add_executable(settings_file_store_tests
     settings_file_store_test.cpp
@@ -38,6 +55,7 @@ add_executable(settings_file_store_tests
 target_link_libraries(settings_file_store_tests PRIVATE test_common)
 
 add_test(NAME settings_file_store_tests COMMAND settings_file_store_tests)
+configure_test_runtime(settings_file_store_tests settings_file_store_tests)
 
 add_executable(settings_apply_service_tests
     settings_apply_service_test.cpp
@@ -58,6 +76,7 @@ target_link_libraries(settings_apply_service_tests PRIVATE
 )
 
 add_test(NAME settings_apply_service_tests COMMAND settings_apply_service_tests)
+configure_test_runtime(settings_apply_service_tests settings_apply_service_tests)
 
 add_executable(settings_draft_tests
     settings_draft_test.cpp
@@ -76,6 +95,7 @@ target_link_libraries(settings_draft_tests PRIVATE
 )
 
 add_test(NAME settings_draft_tests COMMAND settings_draft_tests)
+configure_test_runtime(settings_draft_tests settings_draft_tests)
 
 add_executable(settings_session_tests
     settings_session_test.cpp
@@ -98,6 +118,7 @@ target_link_libraries(settings_session_tests PRIVATE
 )
 
 add_test(NAME settings_session_tests COMMAND settings_session_tests)
+configure_test_runtime(settings_session_tests settings_session_tests)
 
 add_executable(alarm_manager_tests
     alarm_manager_test.cpp
@@ -118,3 +139,4 @@ target_link_libraries(alarm_manager_tests PRIVATE
 )
 
 add_test(NAME alarm_manager_tests COMMAND alarm_manager_tests)
+configure_test_runtime(alarm_manager_tests alarm_manager_tests)

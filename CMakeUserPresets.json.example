@@ -1,0 +1,37 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "local-qt-paths",
+      "hidden": true,
+      "environment": {
+        "QT_WIN_MINGW_ROOT": "C:/Qt/6.11.0/mingw_64",
+        "QT_WIN_MSVC_ROOT": "C:/Qt/6.11.0/msvc2022_64",
+        "QT_WIN_MINGW_TOOLS_ROOT": "C:/Qt/Tools/mingw1310_64",
+        "QT_WIN_NINJA_ROOT": "C:/Qt/Tools/Ninja",
+        "QT_ROOT_DIR": "/opt/Qt/6.11.0/gcc_64"
+      }
+    },
+    {
+      "name": "windows-mingw-debug-local",
+      "inherits": [
+        "local-qt-paths",
+        "windows-mingw-debug"
+      ]
+    },
+    {
+      "name": "windows-msvc-release-local",
+      "inherits": [
+        "local-qt-paths",
+        "windows-msvc-release"
+      ]
+    },
+    {
+      "name": "linux-ninja-release-local",
+      "inherits": [
+        "local-qt-paths",
+        "linux-ninja-release"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,252 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "vendor": {
+        "qt.io/QtCreator/1.0": {
+          "AskBeforePresetsReload": false,
+          "AskReConfigureInitialParams": false,
+          "AutorunCMake": false,
+          "PackageManagerAutoSetup": false,
+          "UseJunctionsForSourceAndBuildDirectories": true
+        }
+      },
+      "cacheVariables": {
+        "BUILD_TESTING": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "CMAKE_EXPORT_COMPILE_COMMANDS": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
+    },
+    {
+      "name": "windows-common",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-mingw-base",
+      "hidden": true,
+      "inherits": "windows-common",
+      "generator": "Ninja",
+      "environment": {
+        "PATH": "$env{QT_WIN_MINGW_TOOLS_ROOT}/bin${pathListSep}$env{QT_WIN_NINJA_ROOT}${pathListSep}$penv{PATH}"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": {
+          "type": "FILEPATH",
+          "value": "$env{QT_WIN_MINGW_TOOLS_ROOT}/bin/g++.exe"
+        },
+        "CMAKE_MAKE_PROGRAM": {
+          "type": "FILEPATH",
+          "value": "$env{QT_WIN_NINJA_ROOT}/ninja.exe"
+        },
+        "CMAKE_PREFIX_PATH": {
+          "type": "PATH",
+          "value": "$env{QT_WIN_MINGW_ROOT}"
+        }
+      }
+    },
+    {
+      "name": "windows-msvc-base",
+      "hidden": true,
+      "inherits": "windows-common",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": {
+          "type": "PATH",
+          "value": "$env{QT_WIN_MSVC_ROOT}"
+        }
+      }
+    },
+    {
+      "name": "linux-common",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "windows-mingw-debug",
+      "displayName": "Windows MinGW Debug",
+      "description": "Debug build for the Windows MinGW kit with Ninja.",
+      "inherits": "windows-mingw-base",
+      "binaryDir": "${sourceDir}/build/windows-mingw-debug",
+      "installDir": "${sourceDir}/build/windows-mingw-debug/stage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": {
+          "type": "STRING",
+          "value": "Debug"
+        }
+      }
+    },
+    {
+      "name": "windows-mingw-release",
+      "displayName": "Windows MinGW Release",
+      "description": "Release build for the Windows MinGW kit with Ninja.",
+      "inherits": "windows-mingw-base",
+      "binaryDir": "${sourceDir}/build/windows-mingw-release",
+      "installDir": "${sourceDir}/build/windows-mingw-release/stage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": {
+          "type": "STRING",
+          "value": "Release"
+        }
+      }
+    },
+    {
+      "name": "windows-msvc-debug",
+      "displayName": "Windows MSVC Debug",
+      "description": "Debug build for the Windows MSVC 2022 kit with the Visual Studio generator.",
+      "inherits": "windows-msvc-base",
+      "binaryDir": "${sourceDir}/build/windows-msvc-debug",
+      "installDir": "${sourceDir}/build/windows-msvc-debug/stage",
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": {
+          "type": "STRING",
+          "value": "Debug"
+        }
+      }
+    },
+    {
+      "name": "windows-msvc-release",
+      "displayName": "Windows MSVC Release",
+      "description": "Release build for the Windows MSVC 2022 kit with the Visual Studio generator.",
+      "inherits": "windows-msvc-base",
+      "binaryDir": "${sourceDir}/build/windows-msvc-release",
+      "installDir": "${sourceDir}/build/windows-msvc-release/stage",
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": {
+          "type": "STRING",
+          "value": "Release"
+        }
+      }
+    },
+    {
+      "name": "linux-ninja-debug",
+      "displayName": "Linux Ninja Debug",
+      "description": "Debug build for Linux with Ninja.",
+      "inherits": "linux-common",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-ninja-debug",
+      "installDir": "${sourceDir}/build/linux-ninja-debug/stage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": {
+          "type": "STRING",
+          "value": "Debug"
+        }
+      }
+    },
+    {
+      "name": "linux-ninja-release",
+      "displayName": "Linux Ninja Release",
+      "description": "Release build for Linux with Ninja.",
+      "inherits": "linux-common",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-ninja-release",
+      "installDir": "${sourceDir}/build/linux-ninja-release/stage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": {
+          "type": "STRING",
+          "value": "Release"
+        }
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-mingw-debug",
+      "configurePreset": "windows-mingw-debug"
+    },
+    {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release"
+    },
+    {
+      "name": "windows-msvc-debug",
+      "configurePreset": "windows-msvc-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-msvc-release",
+      "configurePreset": "windows-msvc-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "linux-ninja-debug",
+      "configurePreset": "linux-ninja-debug"
+    },
+    {
+      "name": "linux-ninja-release",
+      "configurePreset": "linux-ninja-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-mingw-debug",
+      "configurePreset": "windows-mingw-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-msvc-debug",
+      "configurePreset": "windows-msvc-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-msvc-release",
+      "configurePreset": "windows-msvc-release",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-ninja-debug",
+      "configurePreset": "linux-ninja-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-ninja-release",
+      "configurePreset": "linux-ninja-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

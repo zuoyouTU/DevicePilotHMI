@@ -9,15 +9,30 @@ on:
 
 jobs:
   build-windows:
-    name: build-windows
+    name: build-${{ matrix.label }}
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: mingw
+            preset: windows-mingw-release
+            qt_arch: win64_mingw
+            artifact_name: windows-mingw-release-build-tree
+            package_name: DevicePilotHMI-windows-mingw-x64
+          - label: msvc
+            preset: windows-msvc-release
+            qt_arch: win64_msvc2022_64
+            artifact_name: windows-msvc-release-build-tree
+            package_name: DevicePilotHMI-windows-msvc-x64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Install Qt (MinGW)
+        if: matrix.label == 'mingw'
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: 6.11.0
           aqtsource: git+https://github.com/miurahr/aqtinstall.git
@@ -26,27 +41,69 @@ jobs:
           arch: win64_mingw
           tools: tools_mingw1310
 
-      - name: Configure
-        shell: pwsh
-        run: |
-          qt-cmake -S . -B build-ci -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Install Qt (MSVC)
+        if: matrix.label == 'msvc'
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: 6.11.0
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
 
-      - name: Build
+      - name: Export Preset Environment (MinGW)
+        if: matrix.label == 'mingw'
         shell: pwsh
         run: |
-          cmake --build build-ci --parallel
+          $ninja = Get-Command ninja -ErrorAction Stop
+          $mingwToolsRoot = Join-Path $env:IQTA_TOOLS 'mingw1310_64'
+          "QT_WIN_MINGW_ROOT=$($env:QT_ROOT_DIR -replace '\\','/')" >> $env:GITHUB_ENV
+          "QT_WIN_MINGW_TOOLS_ROOT=$($mingwToolsRoot -replace '\\','/')" >> $env:GITHUB_ENV
+          "QT_WIN_NINJA_ROOT=$((Split-Path $ninja.Source -Parent) -replace '\\','/')" >> $env:GITHUB_ENV
+
+      - name: Export Preset Environment (MSVC)
+        if: matrix.label == 'msvc'
+        shell: pwsh
+        run: |
+          "QT_WIN_MSVC_ROOT=$($env:QT_ROOT_DIR -replace '\\','/')" >> $env:GITHUB_ENV
+
+      - name: Configure and Build
+        shell: pwsh
+        run: |
+          .\scripts\build.ps1 -Preset ${{ matrix.preset }} -SkipTests
+
+      - name: Upload Build Tree
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/${{ matrix.preset }}
+          include-hidden-files: true
+          if-no-files-found: error
 
   run-tests:
-    name: run-tests
+    name: test-${{ matrix.label }}
     runs-on: windows-latest
     needs: build-windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: mingw
+            preset: windows-mingw-release
+            qt_arch: win64_mingw
+            artifact_name: windows-mingw-release-build-tree
+          - label: msvc
+            preset: windows-msvc-release
+            qt_arch: win64_msvc2022_64
+            artifact_name: windows-msvc-release-build-tree
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Install Qt (MinGW)
+        if: matrix.label == 'mingw'
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: 6.11.0
           aqtsource: git+https://github.com/miurahr/aqtinstall.git
@@ -55,32 +112,69 @@ jobs:
           arch: win64_mingw
           tools: tools_mingw1310
 
-      - name: Configure
-        shell: pwsh
-        run: |
-          qt-cmake -S . -B build-ci -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Install Qt (MSVC)
+        if: matrix.label == 'msvc'
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: 6.11.0
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
 
-      - name: Build
+      - name: Export Preset Environment (MinGW)
+        if: matrix.label == 'mingw'
         shell: pwsh
         run: |
-          cmake --build build-ci --parallel
+          $ninja = Get-Command ninja -ErrorAction Stop
+          $mingwToolsRoot = Join-Path $env:IQTA_TOOLS 'mingw1310_64'
+          "QT_WIN_MINGW_ROOT=$($env:QT_ROOT_DIR -replace '\\','/')" >> $env:GITHUB_ENV
+          "QT_WIN_MINGW_TOOLS_ROOT=$($mingwToolsRoot -replace '\\','/')" >> $env:GITHUB_ENV
+          "QT_WIN_NINJA_ROOT=$((Split-Path $ninja.Source -Parent) -replace '\\','/')" >> $env:GITHUB_ENV
+
+      - name: Export Preset Environment (MSVC)
+        if: matrix.label == 'msvc'
+        shell: pwsh
+        run: |
+          "QT_WIN_MSVC_ROOT=$($env:QT_ROOT_DIR -replace '\\','/')" >> $env:GITHUB_ENV
+
+      - name: Download Build Tree
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/${{ matrix.preset }}
 
       - name: Run Tests
         shell: pwsh
         run: |
-          ctest --test-dir build-ci --output-on-failure --parallel
+          ctest --preset ${{ matrix.preset }}
 
   package-artifact:
-    name: package-artifact
+    name: package-${{ matrix.label }}
     runs-on: windows-latest
     needs: run-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: mingw
+            preset: windows-mingw-release
+            qt_arch: win64_mingw
+            artifact_name: windows-mingw-release-build-tree
+            package_name: DevicePilotHMI-windows-mingw-x64
+          - label: msvc
+            preset: windows-msvc-release
+            qt_arch: win64_msvc2022_64
+            artifact_name: windows-msvc-release-build-tree
+            package_name: DevicePilotHMI-windows-msvc-x64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Install Qt (MinGW)
+        if: matrix.label == 'mingw'
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: 6.11.0
           aqtsource: git+https://github.com/miurahr/aqtinstall.git
@@ -89,44 +183,46 @@ jobs:
           arch: win64_mingw
           tools: tools_mingw1310
 
-      - name: Configure
-        shell: pwsh
-        run: |
-          qt-cmake -S . -B build-ci -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Install Qt (MSVC)
+        if: matrix.label == 'msvc'
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: 6.11.0
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
 
-      - name: Build
+      - name: Export Preset Environment (MinGW)
+        if: matrix.label == 'mingw'
         shell: pwsh
         run: |
-          cmake --build build-ci --parallel
+          $ninja = Get-Command ninja -ErrorAction Stop
+          $mingwToolsRoot = Join-Path $env:IQTA_TOOLS 'mingw1310_64'
+          "QT_WIN_MINGW_ROOT=$($env:QT_ROOT_DIR -replace '\\','/')" >> $env:GITHUB_ENV
+          "QT_WIN_MINGW_TOOLS_ROOT=$($mingwToolsRoot -replace '\\','/')" >> $env:GITHUB_ENV
+          "QT_WIN_NINJA_ROOT=$((Split-Path $ninja.Source -Parent) -replace '\\','/')" >> $env:GITHUB_ENV
+
+      - name: Export Preset Environment (MSVC)
+        if: matrix.label == 'msvc'
+        shell: pwsh
+        run: |
+          "QT_WIN_MSVC_ROOT=$($env:QT_ROOT_DIR -replace '\\','/')" >> $env:GITHUB_ENV
+
+      - name: Download Build Tree
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/${{ matrix.preset }}
 
       - name: Package
         shell: pwsh
         run: |
-          $releaseDir = Join-Path $PWD "release\DevicePilotHMI-windows-x64"
-          New-Item -ItemType Directory -Force $releaseDir | Out-Null
-
-          $exe = Get-ChildItem -Recurse -Path build-ci -Filter DevicePilotHMI.exe |
-            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } |
-            Select-Object -First 1 -ExpandProperty FullName
-
-          if (-not $exe) {
-            throw "DevicePilotHMI.exe was not found in build output."
-          }
-
-          Copy-Item $exe $releaseDir
-
-          windeployqt --release --qmldir qml "$releaseDir\DevicePilotHMI.exe"
-
-          Remove-Item "$releaseDir\qmltooling" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$releaseDir\translations" -Recurse -Force -ErrorAction SilentlyContinue
-
-          Compress-Archive `
-            -Path "$releaseDir\*" `
-            -DestinationPath "$PWD\release\DevicePilotHMI-windows-x64.zip" `
-            -Force
+          .\scripts\package_windows.ps1 -Preset ${{ matrix.preset }} -SkipBuild
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: DevicePilotHMI-windows-x64
-          path: release/DevicePilotHMI-windows-x64.zip
+          name: ${{ matrix.package_name }}
+          path: release/${{ matrix.package_name }}.zip
+          if-no-files-found: error
